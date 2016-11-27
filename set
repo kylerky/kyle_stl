@@ -460,14 +460,14 @@ namespace kyle_std
 			alloc.destroy((*pnode)->val);
 			alloc.deallocate((*pnode)->val, 1);
 			delete *pnode;
-			Node *node = nullptr;
+			Node *ret = nullptr;
 			while (!route.empty())
 			{
-				node = *route.top();
-				node = balance(node);
+				ret = *route.top();
+				(*route.top()) = balance(*route.top());
 				route.pop();
 			}
-			return node;
+			return ret;
 		}
 	// move_red_left
 	template <typename T, typename Compare, typename Alloc>
@@ -500,11 +500,11 @@ namespace kyle_std
 		{
 
 		}*/
-	template <typename T, typename Compare, typename Alloc>
+	/*template <typename T, typename Compare, typename Alloc>
 		std::size_t _k_Set_base<T, Compare, Alloc>::_erase(const T& val)
 		{
 
-		}
+		}*/
 	// the realization of class Node
 	template <typename T, typename Compare, typename Alloc>
 		class _k_Set_base<T, Compare, Alloc>::Node
