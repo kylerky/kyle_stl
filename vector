@@ -1,0 +1,369 @@
+
+# ifndef KYLE_STL_VECTOR
+# define KYLE_STL_VECTOR 1
+
+# include <memory> 
+# include "iterator"
+# include <stdexcept>
+# include <type_traits>
+
+namespace kyle_std
+{
+	template <typename T, typename Alloc>
+		class vector;
+	template <typename T, typename Alloc>
+		class _k_Vec_base;
+
+	template <typename T, typename Alloc = std::allocator<T>>
+		class vector : protected _k_Vec_base<T, Alloc>
+		{
+		public:
+			typedef T                                                             value_type;
+			typedef Alloc                                                         allocator_type;
+			typedef T&                                                            reference;
+			typedef const T&                                                      const_reference;
+			typedef typename std::allocator_traits<allocator_type>::pointer       pointer;
+			typedef typename std::allocator_traits<allocator_type>::const_pointer const_pointer;
+			typedef _k_Random_Iterator<T>                                         iterator;
+			typedef _k_Random_Iterator<const T>                                   const_iterator;
+			typedef typename std::iterator_traits<iterator>::difference_type      difference_type;
+			typedef std::size_t                                                   size_type;
+
+			// constructor
+			vector();
+			explicit vector (const allocator_type& alloc);
+
+			//vector& operator=(const vector& x);
+			//vector& operator=(vector&& x);
+			// iterator
+			inline iterator begin() noexcept;
+			inline const_iterator begin() const noexcept;
+			inline iterator end() noexcept;
+			inline const_iterator end() const noexcept;
+			inline const_iterator cbegin() const noexcept;
+			inline const_iterator cend() const noexcept;
+			// capacity
+			inline size_type size() const noexcept;
+			void resize(size_type n);
+			void resize(size_type n, const value_type& val);
+			inline size_type capacity() const noexcept;
+			inline bool empty() const noexcept;
+			void reserve(size_type n);
+			void shrink_to_fit();
+			// element access
+			reference operator[](size_type n);
+			const_reference operator[](size_type n) const;
+			reference at(size_type n);
+			const_reference at(size_type n) const;
+
+			// modifiers
+			void pop_back();
+			void push_back(const value_type& val);
+			void push_back(value_type&& val);
+			iterator insert(const_iterator position, const value_type& val);
+			iterator erase(const_iterator position);
+			iterator erase(const_iterator begin, const_iterator end);
+			void clear() noexcept;
+
+			// destructor
+			~vector();
+		protected:
+			typedef _k_Vec_base<T, Alloc> vector_base;
+
+		};
+
+
+	// this is the base class of vector, it mainly deals with the problems related to memory
+	template <typename T, typename Alloc = std::allocator<T>>
+		class _k_Vec_base
+		{
+		public:
+			typedef std::size_t size_type;
+
+			// constructor
+			_k_Vec_base();
+			explicit _k_Vec_base (const Alloc& alloc);
+			// push back
+			void _push_back(const T& val);
+			void _push_back(T&& val);
+			// pop back
+			void _pop_back();
+			// insert an element in the position
+			T* _insert(T *position, const T& val);
+			// remove the elements in a spcified range
+			T* _erase(T *begin, T *end);
+
+			void _resize(size_type n);
+			// destructor
+			~_k_Vec_base();
+		protected:
+			T *pbegin;
+			T *first_free;
+			T *pend;
+			static const size_type init_capacity = 2;
+		private:
+			Alloc alloc;
+		};
+
+
+
+
+	/** this is the realization of the vector template
+	  * it is based on _k_Vec_base
+	  */
+	// the constructors just pass on all the jobs to the base class
+	template <typename T, typename Alloc>
+		vector<T, Alloc>::vector() : _k_Vec_base<T, Alloc>()
+		{}
+	template <typename T, typename Alloc>
+		vector<T, Alloc>::vector(const allocator_type& alloc) : _k_Vec_base<T, Alloc>(alloc)
+		{}
+
+	// iterators
+	template <typename T, typename Alloc>
+		typename vector<T, Alloc>::iterator vector<T, Alloc>::begin() noexcept
+		{
+			return _k_Random_Iterator<T>(vector_base::pbegin);
+		}
+	template <typename T, typename Alloc>
+		typename vector<T, Alloc>::const_iterator vector<T, Alloc>::begin() const noexcept
+		{
+			return this->cbegin();
+		}
+	template <typename T, typename Alloc>
+		typename vector<T, Alloc>::iterator vector<T, Alloc>::end() noexcept
+		{
+			return _k_Random_Iterator<T>(vector_base::first_free);
+		}
+	template <typename T, typename Alloc>
+		typename vector<T, Alloc>::const_iterator vector<T, Alloc>::end() const noexcept
+		{
+			return this->cend();
+		}
+	template <typename T, typename Alloc>
+		typename vector<T, Alloc>::const_iterator vector<T, Alloc>::cbegin() const noexcept
+		{
+			return _k_Random_Iterator<const T>(vector_base::pbegin);
+		}
+	template <typename T, typename Alloc>
+		typename vector<T, Alloc>::const_iterator vector<T, Alloc>::cend() const noexcept
+		{
+			return _k_Random_Iterator<const T>(vector_base::first_free);
+		}
+
+	// capacity
+	template <typename T, typename Alloc>
+		typename vector<T, Alloc>::size_type vector<T, Alloc>::size() const noexcept
+		{
+			return vector_base::first_free - vector_base::pbegin;
+		}
+	template <typename T, typename Alloc>
+		void vector<T, Alloc>::resize(size_type n)
+		{
+			resize(n, T());
+		}
+	template <typename T, typename Alloc>
+		void vector<T, Alloc>::resize(size_type n, const value_type& val)
+		{
+			if (n < size())
+			{
+				while (n < size())
+					pop_back();
+			}
+			else if (n > size())
+			{
+				while (n  > size())
+					push_back(val);
+			}
+		}
+	template <typename T, typename Alloc>
+		typename vector<T, Alloc>::size_type vector<T, Alloc>::capacity() const noexcept
+		{
+			return vector_base::pend - vector_base::pbegin;
+		}
+	template <typename T, typename Alloc>
+		bool vector<T, Alloc>::empty() const noexcept
+		{
+			return size() == 0;
+		}
+	template <typename T, typename Alloc>
+		void vector<T, Alloc>::reserve(size_type n)
+		{
+			if (n <= size())
+				return;
+			vector_base::_resize(n);
+		}
+	template <typename T, typename Alloc>
+		void vector<T, Alloc>::shrink_to_fit()
+		{
+			if (capacity() > size())
+				vector_base::_resize(size());
+		}
+	// element access
+	// operator [] will not check whether n is within the bounds of valid elements, while at does
+	template <typename T, typename Alloc>
+		typename vector<T, Alloc>::reference vector<T, Alloc>::operator[](size_type n)
+		{
+			return *(vector_base::pbegin + n);
+		}
+	template <typename T, typename Alloc>
+		typename vector<T, Alloc>::const_reference vector<T, Alloc>::operator[](size_type n) const
+		{
+			return *(vector_base::pbegin + n);
+		}
+	template <typename T, typename Alloc>
+		typename vector<T, Alloc>::reference vector<T, Alloc>::at(size_type n)
+		{
+			if (n >= size())
+				throw std::out_of_range("the first arg of member function at exceeds the size of the vector");
+			return (*this)[n];
+		}
+	template <typename T, typename Alloc>
+		typename vector<T, Alloc>::const_reference vector<T, Alloc>::at(size_type n) const
+		{
+			if (n >= size())
+				throw std::out_of_range("the first arg of member function at exceeds the size of the vector");
+			return (*this)[n];
+		}
+
+	// modifiers
+	template <typename T, typename Alloc>
+		void vector<T, Alloc>::pop_back()
+		{
+			vector_base::_pop_back();
+		}
+	template <typename T, typename Alloc>
+		void vector<T, Alloc>::push_back(const value_type& val)
+		{
+			vector_base::_push_back(val);
+		}
+	template <typename T, typename Alloc>
+		void vector<T, Alloc>::push_back(value_type&& val)
+		{
+			vector_base::_push_back(val);
+		}
+	template <typename T, typename Alloc>
+		typename vector<T, Alloc>::iterator vector<T, Alloc>::insert(const_iterator position, const value_type& val)
+		{
+			return iterator(vector_base::_insert(const_cast<T*>(position.p), val));
+		}
+	template <typename T, typename Alloc>
+		typename vector<T, Alloc>::iterator vector<T, Alloc>::erase(const_iterator position)
+		{
+			return iterator(vector_base::_erase(const_cast<T*>(position.p), const_cast<T*>(position.p) + 1));
+		}
+	template <typename T, typename Alloc>
+		typename vector<T, Alloc>::iterator vector<T, Alloc>::erase(const_iterator ibegin, const_iterator iend)
+		{
+			return iterator(vector_base::_erase(const_cast<T*>(ibegin.p), const_cast<T*>(iend.p)));
+		}
+	template <typename T, typename Alloc>
+		void vector<T, Alloc>::clear() noexcept
+		{
+			vector_base::_erase(vector_base::pbegin, vector_base::pend);
+		}
+	template <typename T, typename Alloc>
+		vector<T, Alloc>::~vector()
+		{
+
+		}
+
+	// the realization of _k_Vec_base :
+	// _k_Vec_base constructor
+	template <typename T, typename Alloc>
+		_k_Vec_base<T, Alloc>::_k_Vec_base() : _k_Vec_base(Alloc())
+		{}
+	template <typename T, typename Alloc>
+		_k_Vec_base<T, Alloc>::_k_Vec_base(const Alloc& _alloc) : pbegin(nullptr), 
+		                                                          first_free(nullptr),
+		                                                          pend(nullptr)
+		{
+			alloc = _alloc;
+			first_free = pbegin = alloc.allocate(init_capacity);
+			pend = pbegin + init_capacity;
+		}
+
+	// _k_Vec_base add an element to the end of the memory block
+	template <typename T, typename Alloc>
+		void _k_Vec_base<T, Alloc>::_push_back(const T& val)
+		{
+			if (first_free == pend)
+				_resize(2 * (pend - pbegin));
+			alloc.construct(first_free++, val);
+		}
+	template <typename T, typename Alloc>
+		void _k_Vec_base<T, Alloc>::_push_back(T&& val)
+		{
+			if (first_free == pend)
+				_resize(2 * (pend - pbegin));
+			alloc.construct(first_free++, val);
+		}
+
+	// resize the memory block to meet the need
+	template <typename T, typename Alloc>
+		void _k_Vec_base<T, Alloc>::_resize(size_type n)
+		{
+			T *new_begin = alloc.allocate(n);
+			T *new_first_free = new_begin;
+			size_type sz = first_free - pbegin;
+			size_type new_n = n < sz ? n : sz;
+			for (T *i = pbegin; i < pbegin + new_n; ++i)
+			{
+				alloc.construct(new_first_free++, std::move(*i));
+				alloc.destroy(i);
+			}
+			alloc.deallocate(pbegin, pend - pbegin);
+			pbegin = new_begin;
+			first_free = new_first_free;
+			pend = pbegin + n;
+		}
+	// remove the last element
+	template <typename T, typename Alloc>
+		void _k_Vec_base<T, Alloc>::_pop_back()
+		{
+			alloc.destroy(--first_free);
+		}
+	// insert in certain position
+	template <typename T, typename Alloc>
+		T* _k_Vec_base<T, Alloc>::_insert(T *position, const T& val)
+		{
+			if (first_free == pend)
+				_resize(2 * (pend - pbegin));
+			for (T *i = first_free; i > position; --i)
+			{
+				alloc.construct(i, std::move(*(i - 1)));
+				alloc.destroy(i - 1);
+			}
+			++first_free;
+			alloc.construct(position, val);
+			return position;
+		}
+	// remove elements in a range
+	template <typename T, typename Alloc>
+		T* _k_Vec_base<T, Alloc>::_erase(T *begin, T *end)
+		{
+			for (T *i = end; i > begin; --i)
+				alloc.destroy(i - 1);
+			T *k = begin;
+			for (T *j = end; j < first_free; ++j, ++k)
+			{
+				alloc.construct(k, std::move(*j));
+				alloc.destroy(j);
+			}
+			first_free = k;
+			return begin;
+		}
+
+	// _k_Vec_base<T, Alloc> destructor
+	template <typename T, typename Alloc>
+		_k_Vec_base<T, Alloc>::~_k_Vec_base()
+		{
+			for (T *i = pbegin; i < first_free; ++i)
+				alloc.destroy(i);
+			alloc.deallocate(pbegin, pend - pbegin);
+		}
+	// the realization of _k_Vec_base<T, Alloc> ends here
+
+} // kyle_std
+
+# endif // KYLE_STL_VECTOR

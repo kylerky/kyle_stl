@@ -1,0 +1,174 @@
+
+#ifndef KYLE_STL_ITERATOR
+#define KYLE_STL_ITERATOR 1
+
+#include <iterator>
+
+namespace kyle_std
+{
+
+	//random iterator
+	template <typename T>
+		class _k_Random_Iterator : public std::iterator<std::random_access_iterator_tag,
+														T>
+		{
+			// compare
+			template <typename Type, typename Alloc>
+				friend class vector;
+			template <typename T1, typename T2>
+				friend bool operator>(const _k_Random_Iterator<T1> &lhs, const _k_Random_Iterator<T2> &rhs);
+			template <typename T1, typename T2>
+				friend bool operator<(const _k_Random_Iterator<T1> &lhs, const _k_Random_Iterator<T2> &rhs);
+			template <typename T1, typename T2>
+				friend bool operator>=(const _k_Random_Iterator<T1> &lhs, const _k_Random_Iterator<T2> &rhs);
+			template <typename T1, typename T2>
+				friend bool operator<=(const _k_Random_Iterator<T1> &lhs, const _k_Random_Iterator<T2> &rhs);
+			template <typename T1, typename T2>
+				friend bool operator==(const _k_Random_Iterator<T1> &lhs, const _k_Random_Iterator<T2> &rhs);
+			template <typename T1, typename T2>
+				friend bool operator!=(const _k_Random_Iterator<T1> &lhs, const _k_Random_Iterator<T2> &rhs);
+		public:
+			// default constructor
+			explicit _k_Random_Iterator() noexcept : p(nullptr)
+			{}
+			// copy constructor
+			_k_Random_Iterator(const _k_Random_Iterator&) = default;
+			// move constructor
+			_k_Random_Iterator(_k_Random_Iterator&&) = default;
+
+			explicit _k_Random_Iterator(T *p) noexcept : p(p)
+			{}
+			// assign constructors
+			_k_Random_Iterator<T>& operator= (const _k_Random_Iterator&) = default;
+			_k_Random_Iterator<T>& operator= (_k_Random_Iterator&&) = default;
+
+			// postposition
+			inline _k_Random_Iterator<T>& operator++()
+			{
+				p += 1;
+				return *this;
+			}
+			inline _k_Random_Iterator<T>& operator--()
+			{
+				p -= 1;
+				return *this;
+			}
+			// preposition
+			inline _k_Random_Iterator<T> operator++(int);
+			inline _k_Random_Iterator<T> operator--(int);
+			
+			inline _k_Random_Iterator<T> operator+(size_t);
+			inline _k_Random_Iterator<T> operator-(size_t);
+			inline std::size_t operator-(const _k_Random_Iterator&);
+			inline _k_Random_Iterator<T>& operator+=(const size_t offset)
+			{
+				p += offset;
+				return *this;
+			}
+
+			inline _k_Random_Iterator<T>& operator-=(const size_t offset)
+			{
+				p -= offset;
+				return *this;
+			}
+
+			// dereference
+			inline T& operator*() const
+			{
+				return *p;
+			}
+			inline T* operator->() const
+			{
+				return &this->operator*();
+			}
+			// offset dereference
+			inline T& operator[](std::size_t index) const
+			{
+				return p[index];
+			}
+
+
+			virtual ~_k_Random_Iterator() = default;
+
+		private:
+			T *p;
+		}; // class _k_Random_Iterator
+
+
+		// arithmetic operators for _k_Random_Iterator<T>
+		template <typename T>
+			_k_Random_Iterator<T> _k_Random_Iterator<T>::operator+(std::size_t offset)
+			{
+				_k_Random_Iterator<T> ret = *this;
+				ret += offset;
+				return std::move(ret);
+			}
+		template <typename T>
+			_k_Random_Iterator<T> operator+(std::size_t offset, const _k_Random_Iterator<T> &iter)
+			{
+				_k_Random_Iterator<T> ret = iter;
+				ret += offset;
+				return std::move(ret);
+			}
+		template <typename T>
+			_k_Random_Iterator<T> _k_Random_Iterator<T>::operator-(std::size_t offset)
+			{
+				_k_Random_Iterator<T> ret = *this;
+				ret -= offset;
+				return std::move(ret);
+			}
+		template <typename T>
+			std::size_t _k_Random_Iterator<T>::operator-(const _k_Random_Iterator<T> &rhs)
+			{
+				return (*this).p - rhs.p;
+			}
+
+		// compare operators for _k_Random_Iterator<T>
+		template <typename T1, typename T2>
+			inline bool operator>(const _k_Random_Iterator<T1> &lhs, const _k_Random_Iterator<T2> &rhs)
+			{
+				return lhs.p > rhs.p;
+			}
+		template <typename T1, typename T2>
+			inline bool operator<(const _k_Random_Iterator<T1> &lhs, const _k_Random_Iterator<T2> &rhs)
+			{
+				return lhs.p < rhs.p;
+			}
+		template <typename T1, typename T2>
+			inline bool operator>=(const _k_Random_Iterator<T1> &lhs, const _k_Random_Iterator<T2> &rhs)
+			{
+				return !(lhs < rhs);
+			}
+		template <typename T1, typename T2>
+			inline bool operator<=(const _k_Random_Iterator<T1> &lhs, const _k_Random_Iterator<T2> &rhs)
+			{
+				return !(lhs > rhs);
+			}
+		template <typename T1, typename T2>
+			inline bool operator==(const _k_Random_Iterator<T1> &lhs, const _k_Random_Iterator<T2> &rhs)
+			{
+				return lhs.p == rhs.p;
+			}
+
+		template <typename T1, typename T2>
+			inline bool operator!=(const _k_Random_Iterator<T1> &lhs, const _k_Random_Iterator<T2> &rhs)
+			{
+				return !(lhs == rhs);
+			}
+		template <typename T>
+			inline _k_Random_Iterator<T> _k_Random_Iterator<T>::operator++(int)
+			{
+				_k_Random_Iterator<T> ret = *this;
+				++*this;
+				return ret;
+			}
+		template <typename T>
+			inline _k_Random_Iterator<T> _k_Random_Iterator<T>::operator--(int)
+			{
+				_k_Random_Iterator<T> ret = *this;
+				--*this;
+				return ret;
+			}
+
+} // namespace kyle_std
+#endif // KYLE_STL_ITERATOR

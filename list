@@ -1,0 +1,486 @@
+# ifndef KYLE_STL_LIST
+# define KYLE_STL_LIST 1
+
+# include <memory>
+# include <iterator>
+# include <type_traits>
+
+namespace kyle_std
+{
+	template <typename T, typename Alloc>
+		class _k_List_base;
+	template <typename T, typename Alloc>
+		class list;
+	template <typename T, typename Alloc>
+		class _k_list_iterator;
+
+	// list
+	template <typename T, typename Alloc = std::allocator<T>>
+		class list : protected _k_List_base<T, Alloc>
+		{
+		public:
+			typedef _k_list_iterator<T, Alloc>                                    iterator;
+			typedef _k_list_iterator<const T, Alloc>                              const_iterator;
+			typedef T                                                             value_type;
+			typedef Alloc                                                         allocator_type;
+			typedef T&                                                            reference;
+			typedef const T&                                                      const_reference;
+			typedef typename std::allocator_traits<allocator_type>::pointer       pointer;
+			typedef typename std::allocator_traits<allocator_type>::const_pointer const_pointer;
+			typedef typename std::iterator_traits<iterator>::difference_type      difference_type;
+			typedef std::size_t                                                   size_type;
+			// constructor
+			list();
+			explicit list(const allocator_type& alloc);
+			// iterators
+			inline iterator begin() noexcept;
+			inline const_iterator begin() const noexcept;
+			inline iterator end() noexcept;
+			inline const_iterator end() const noexcept;
+			inline const_iterator cbegin() const noexcept;
+			inline const_iterator cend() const noexcept;
+			// capacity
+			inline bool empty() const noexcept;
+			inline size_type size() const noexcept;
+			// modifiers
+			void push_front(const value_type& val);
+			void push_front(value_type&& val);
+			void pop_front();
+			void push_back(const value_type& val);
+			void push_back(value_type&& val);
+			void pop_back();
+			iterator insert(const_iterator position, const value_type& val);
+			iterator erase(const_iterator position);
+			iterator erase(const_iterator first, const_iterator end);
+			void resize(size_type n);
+			void resize(size_type n, const value_type& val);
+			void clear() noexcept;
+			// destructor
+			~list()
+			{}
+		protected:
+			typedef _k_List_base<T, Alloc> list_base;
+		};
+	// _k_List_base
+	template <typename T, typename Alloc>
+		class _k_List_base
+		{
+		friend class _k_list_iterator<T, Alloc>;
+		protected:
+			class _k_Node;
+		public:
+			explicit _k_List_base(const Alloc& alloc);
+			// modifiers
+			void _push_front(const T& val);
+			void _push_front(T&& val);
+			void _pop_front();
+			void _push_back(const T& val);
+			void _push_back(T&& val);
+			void _pop_back();
+			void _resize(size_t n, const T& val);
+			_k_Node* _erase(_k_Node *begin, _k_Node *end);
+			_k_Node* _insert(_k_Node *position, const T& val);
+			~_k_List_base();
+		protected:
+			_k_Node *_first;
+			_k_Node *_last;
+			size_t _size;
+		private:
+			Alloc alloc;
+		};
+	
+	// the realization of _k_List_base
+	// the realization of node
+	template <typename T, typename Alloc>
+		class _k_List_base<T, Alloc>::_k_Node
+		{
+		public:
+			_k_Node(T *_val, _k_Node *_prev = nullptr, _k_Node *_next = nullptr) : val(_val), prev(_prev), next(_next)
+			{}
+			T *val;
+			_k_Node *prev;
+			_k_Node *next;
+		};
+	// constructor
+	template <typename T, typename Alloc>
+		_k_List_base<T, Alloc>::_k_List_base(const Alloc& _alloc) : _first(nullptr), _last(nullptr), _size(0), alloc(_alloc)
+		{}
+	// add an element
+	template <typename T, typename Alloc>
+		void _k_List_base<T, Alloc>::_push_front(const T& val)
+		{
+			T *p = alloc.allocate(1);
+			alloc.construct(p, val);
+			if (_size == 0)
+			{
+				_first = _last = new _k_Node(p, nullptr, nullptr);
+			}
+			else
+			{
+				_first->prev = new _k_Node(p, nullptr, _first);
+				_first = _first->prev;
+			}
+			++_size;
+		}
+	template <typename T, typename Alloc>
+		void _k_List_base<T, Alloc>::_push_front(T&& val)
+		{
+			T *p = alloc.allocate(1);
+			alloc.construct(p, val);
+			if (_size == 0)
+			{
+				_first = _last = new _k_Node(p, nullptr, nullptr);
+			}
+			else
+			{
+				_first->prev = new _k_Node(p, nullptr, _first);
+				_first = _first->prev;
+			}
+			++_size;
+		}
+	template <typename T, typename Alloc>
+		void _k_List_base<T, Alloc>::_push_back(const T& val)
+		{
+			T *p = alloc.allocate(1);
+			alloc.construct(p, val);
+			if (_size == 0)
+			{
+				_first = _last = new _k_Node(p, nullptr, nullptr);
+			}
+			else
+			{
+				_last->next = new _k_Node(p, _last, nullptr);
+				_last = _last->next;
+			}
+			++_size;
+		}
+	template <typename T, typename Alloc>
+		void _k_List_base<T, Alloc>::_push_back(T&& val)
+		{
+			T *p = alloc.allocate(1);
+			alloc.construct(p, val);
+			if (_size == 0)
+			{
+				_first = _last = new _k_Node(p, nullptr, nullptr);
+			}
+			else
+			{
+				_last->next = new _k_Node(p, _last, nullptr);
+				_last = _last->next;
+			}
+			++_size;
+		}
+	// delete an element
+	template <typename T, typename Alloc>
+		void _k_List_base<T, Alloc>::_pop_front()
+		{
+			auto next = _first->next;
+			alloc.destroy(_first->val);
+			alloc.deallocate(_first->val, 1);
+			delete _first;
+			_first = next;
+			--_size;
+			if (_first == nullptr)
+				_last = nullptr;
+			else
+				_first->prev = nullptr;
+		}
+	template <typename T, typename Alloc>
+		void _k_List_base<T, Alloc>::_pop_back()
+		{
+			auto prev = _last->prev;
+			alloc.destroy(_last->val);
+			alloc.deallocate(_last->val, 1);			
+			delete _last;
+			_last = prev;
+			--_size;
+			if (_last == nullptr)
+				_first = nullptr;
+			else
+				_last->next = nullptr;
+
+		}
+	// change the size of the list
+	template <typename T, typename Alloc>
+		void _k_List_base<T, Alloc>::_resize(size_t n, const T& val)
+		{
+			if (n > _size)
+				while (_size < n)
+					_push_back(val);
+			else if (n < _size)
+				while (_size > n)
+					_pop_back();
+		}
+	template <typename T, typename Alloc>
+		typename _k_List_base<T, Alloc>::_k_Node* _k_List_base<T, Alloc>::_erase(_k_Node *begin, _k_Node *end)
+		{
+			_k_Node *prev = begin->prev;
+			while (begin != end)
+			{
+				_k_Node* next = begin->next;
+				alloc.destroy(begin->val);
+				alloc.deallocate(begin->val, 1);
+				delete begin;
+				begin = next;
+				--_size;
+			}
+			if (prev != nullptr)
+				prev->next = end;
+			else
+				_first = end;
+			if (end != nullptr)
+				end->prev = prev;
+			else
+				_last = prev;
+			return end;
+		}
+	template <typename T, typename Alloc>
+		typename _k_List_base<T, Alloc>::_k_Node* _k_List_base<T, Alloc>::_insert(_k_Node *position, const T& val)
+		{
+			if (position == nullptr)
+			{
+				_push_back(val);
+				return _last;
+			}
+			else
+			{
+				T *p = alloc.allocate(1);
+				alloc.construct(p, val);
+				_k_Node *prev = position->prev;
+				position->prev = new _k_Node(p, prev, position);
+				if (prev != nullptr)
+					prev->next = position->prev;
+				else
+					_first = position->prev;
+				++_size;
+				return position->prev;
+			}
+		}
+	// deconstructor
+	template <typename T, typename Alloc>
+		_k_List_base<T, Alloc>::~_k_List_base()
+		{
+			while (_first != nullptr)
+			{
+				_k_Node* next = _first->next;
+				alloc.destroy(_first->val);
+				alloc.deallocate(_first->val, 1);
+				delete _first;
+				_first = next;
+				--_size;
+			}
+		}
+
+
+	// the iterator
+	template <typename T, typename Alloc>
+		class _k_list_iterator : public std::iterator<std::bidirectional_iterator_tag,
+																T>
+		{
+		template <typename T1, typename Alloc1, typename T2, typename Alloc2>
+			friend bool operator==(const _k_list_iterator<T1, Alloc1> &lhs, const _k_list_iterator<T2, Alloc2> &rhs);
+		template <typename T1, typename Alloc1, typename T2, typename Alloc2>
+			friend bool operator!=(const _k_list_iterator<T1, Alloc1> &lhs, const _k_list_iterator<T2, Alloc2> &rhs);
+		template <typename Type, typename Allocator>
+			friend class list;
+		public:
+			_k_list_iterator() : _k_list_iterator(nullptr)
+			{}
+			explicit _k_list_iterator(typename _k_List_base<T, Alloc>::_k_Node *p) : cur(p), last(nullptr)
+			{}
+			_k_list_iterator(const _k_list_iterator& x) = default;
+			_k_list_iterator(_k_list_iterator&& x) = default;
+			// operators		
+			// dereference
+			inline T& operator*() const
+			{
+				return *cur->val;
+			}
+			inline T* operator->() const
+			{
+				return &this->operator*();
+			}
+			// postposition
+			inline _k_list_iterator<T, Alloc>& operator++()
+			{
+				last = cur;
+				cur = cur->next;
+				return *this;
+			}
+			inline _k_list_iterator<T, Alloc>& operator--()
+			{
+				if (cur == nullptr)
+				{
+					cur = last;
+					return *this;
+				}
+				cur = cur->prev;
+				return *this;
+			}
+			// preposition
+			inline _k_list_iterator<T, Alloc> operator++(int);
+			inline _k_list_iterator<T, Alloc> operator--(int);
+			// destructor
+			~_k_list_iterator()
+			{}
+		private:
+			typename _k_List_base<T, Alloc>::_k_Node *cur;
+			typename _k_List_base<T, Alloc>::_k_Node *last;
+		};
+
+	// operators (postposition)
+	template <typename T, typename Alloc>
+		inline _k_list_iterator<T, Alloc> _k_list_iterator<T, Alloc>::operator++(int)
+		{
+			_k_list_iterator<T, Alloc> ret = *this;
+			++*this;
+			return ret;
+		}
+	template <typename T, typename Alloc>
+		inline _k_list_iterator<T, Alloc> _k_list_iterator<T, Alloc>::operator--(int)
+		{
+			_k_list_iterator<T, Alloc> ret = *this;
+			--*this;
+			return ret;
+		}
+	// operators (compare)
+	template <typename T1, typename Alloc1, typename T2, typename Alloc2>
+		inline bool operator==(const _k_list_iterator<T1, Alloc1> &lhs, const _k_list_iterator<T2, Alloc2> &rhs)
+		{
+			return lhs.cur == rhs.cur;
+		}
+	template <typename T1, typename Alloc1, typename T2, typename Alloc2>
+		inline bool operator!=(const _k_list_iterator<T1, Alloc1> &lhs, const _k_list_iterator<T2, Alloc2> &rhs)
+		{
+			return !(lhs == rhs);
+		}
+	// the realization of list
+	template <typename T, typename Alloc>
+		list<T, Alloc>::list() : _k_List_base<T, Alloc>(Alloc())
+		{}
+	template <typename T, typename Alloc>
+		list<T, Alloc>::list(const Alloc& alloc) : _k_List_base<T, Alloc>(alloc)
+		{}
+	template <typename T, typename Alloc>
+		inline typename list<T, Alloc>::iterator list<T, Alloc>::begin() noexcept
+		{
+			return iterator(list_base::_first);
+		}
+	template <typename T, typename Alloc>
+		inline typename list<T, Alloc>::const_iterator list<T, Alloc>::begin() const noexcept
+		{
+			return this->cbegin();
+		}
+	template <typename T, typename Alloc>
+		inline typename list<T, Alloc>::const_iterator list<T, Alloc>::cbegin() const noexcept
+		{
+			const_iterator ret;
+			void* p = list_base::_first;
+			ret.cur = static_cast<decltype(ret.cur)>(p);
+			return ret;
+		}
+	template <typename T, typename Alloc>
+		inline typename list<T, Alloc>::iterator list<T, Alloc>::end() noexcept
+		{
+			iterator ret(nullptr);
+			ret.last = list_base::_last;
+			return ret;
+		}
+	template <typename T, typename Alloc>
+		inline typename list<T, Alloc>::const_iterator list<T, Alloc>::end() const noexcept
+		{
+			return this->cend();
+		}
+	template <typename T, typename Alloc>
+		inline typename list<T, Alloc>::const_iterator list<T, Alloc>::cend() const noexcept
+		{
+			const_iterator ret(nullptr);
+			void *p = list_base::_last;
+			ret.last = static_cast<decltype(ret.last)>(p);
+			return ret;
+		}
+	// capacity
+	template <typename T, typename Alloc>
+		inline bool list<T, Alloc>::empty() const noexcept
+		{
+			return size() == 0;
+		}
+	template <typename T, typename Alloc>
+		inline typename list<T, Alloc>::size_type list<T, Alloc>::size() const noexcept
+		{
+			return list_base::_size;
+		}
+	// modifiers
+	// add an element
+	template <typename T, typename Alloc>
+		void list<T, Alloc>::push_front(const value_type& val)
+		{
+			list_base::_push_front(val);
+		}
+	template <typename T, typename Alloc>
+		void list<T, Alloc>::push_front(value_type&& val)
+		{
+			list_base::_push_front(val);
+		}
+	template <typename T, typename Alloc>
+		void list<T, Alloc>::push_back(const value_type& val)
+		{
+			list_base::_push_back(val);
+		}
+	template <typename T, typename Alloc>
+		void list<T, Alloc>::push_back(value_type&& val)
+		{
+			list_base::_push_back(val);
+		}
+	template <typename T, typename Alloc>
+		void list<T, Alloc>::pop_front()
+		{
+			list_base::_pop_front();
+		}
+	template <typename T, typename Alloc>
+		void list<T, Alloc>::pop_back()
+		{
+			list_base::_pop_back();
+		}
+	// insert an element
+	template <typename T, typename Alloc>
+		typename list<T, Alloc>::iterator list<T, Alloc>::insert(const_iterator position, const value_type& val)
+		{
+			void *p = position.cur;
+			return iterator(list_base::_insert(static_cast<typename list_base::_k_Node*>(p), val));
+		}
+	// erase
+	template <typename T, typename Alloc>
+		typename list<T, Alloc>::iterator list<T, Alloc>::erase(const_iterator position)
+		{
+			void *p = position.cur;
+			return iterator(list_base::_erase(static_cast<typename list_base::_k_Node*>(p), position.cur->next));
+		}
+	template <typename T, typename Alloc>
+		typename list<T, Alloc>::iterator list<T, Alloc>::erase(const_iterator first, const_iterator end)
+		{
+			void *pfirst = first.cur, *pend = end.cur;
+			return iterator(list_base::_erase(static_cast<typename list_base::_k_Node*>(pfirst), static_cast<typename list_base::_k_Node*>(pend)));
+		}
+	// resize
+	template <typename T, typename Alloc>
+		void list<T, Alloc>::resize(size_type n)
+		{
+			list_base::_resize(n, T());
+		}
+	template <typename T, typename Alloc>
+		void list<T, Alloc>::resize(size_type n, const value_type& val)
+		{
+			list_base::_resize(n, val);
+		}
+	// clear
+	template <typename T, typename Alloc>
+		void list<T, Alloc>::clear() noexcept
+		{
+			void *pfirst = list_base::_first;
+			list_base::_erase(static_cast<typename list_base::_k_Node*>(pfirst), nullptr);
+		}
+
+} // kyle_std
+
+# endif // KYLE_STL_LIST

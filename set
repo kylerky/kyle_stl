@@ -1,0 +1,547 @@
+# ifndef KYLE_STL_SET
+# define KYLE_STL_SET 1
+
+# include <memory>
+# include <functional>
+# include <utility>
+# include <stack>
+# include "list"
+
+namespace kyle_std
+{
+
+	template <typename T, typename Compare, typename Alloc>
+		class _k_Set_base;
+
+	template <typename T, typename Compare, typename Alloc>
+		class _k_threaded_bt_iterator;
+
+	template <typename T, typename Compare, typename Alloc>
+		class set;
+	// set
+	template <typename T, typename Compare = std::less<T>, typename Alloc = std::allocator<T>>
+		class set : protected _k_Set_base<T, Compare, Alloc>
+		{
+		public:
+			typedef T                                                             key_type;
+			typedef T                                                             value_type;
+			typedef Compare                                                       key_compare;
+			typedef Compare                                                       value_compare;
+			typedef Alloc                                                         allocator_type;
+			typedef value_type&                                                   reference;
+			typedef const value_type&                                             const_reference;
+			typedef typename std::allocator_traits<allocator_type>::pointer       pointer;
+			typedef typename std::allocator_traits<allocator_type>::const_pointer const_pointer;
+			typedef _k_threaded_bt_iterator<T, Compare, Alloc>                    iterator;
+			typedef _k_threaded_bt_iterator<const T, Compare, Alloc>              const_iterator;
+			typedef typename std::iterator_traits<iterator>::difference_type      difference_type;
+			typedef difference_type                                               size_type;
+			// constructor
+			// empty constructor
+			set() : set(key_compare())
+			{}
+			explicit set(const key_compare& comp, const allocator_type& alloc = allocator_type());
+			explicit set (const allocator_type& alloc) : set(key_compare(), allocator_type())
+			{}
+			// copy constructor
+			set(const set& x) = default;
+			// move constructor
+			set(set&& x) = default;
+
+			// destructor
+			~set()
+			{}
+
+			// iterator
+			iterator begin() noexcept;
+			const_iterator begin() const noexcept;
+			const_iterator cbegin() const noexcept;
+			iterator end() noexcept;
+			const_iterator end() const noexcept;
+			const_iterator cend() const noexcept;
+
+			// capacity
+			bool empty() const noexcept;
+			size_type size() const noexcept;
+
+
+
+			// modifiers
+			/** insert an element
+			 * the first member of pair is an iterator pointing to either the newly inserted element
+			 * or to the equivalent element already in the set
+			 * the second is set to true if a new element was inserted
+			 */
+			std::pair<iterator, bool> insert(const value_type& val);
+			std::pair<iterator, bool> insert(value_type&& val);
+
+			// removes from the set an element
+			iterator erase(const_iterator position);
+			// return the number of elements erased, at most 1
+			size_type erase(const value_type& val);
+
+			void clear() noexcept;
+
+			// observers
+			inline key_compare key_comp() const;
+			inline value_compare value_comp() const;
+
+			// operations
+			// find an element
+			const_iterator find(const value_type& val) const;
+			iterator find(const value_type& val);
+			// at most 1
+			size_type count(const value_type& val) const;
+
+			iterator lower_bound(const value_type& val);
+			const_iterator lower_bound(const value_type& val) const;
+
+			iterator upper_bound(const value_type& val);
+			const_iterator upper_bound(const value_type& val) const;
+
+			std::pair<const_iterator, const_iterator> equal_range(const value_type&val) const;
+			std::pair<iterator, iterator> equal_range(const value_type& val);
+		}; // class set
+	// _k_Set_base
+	template <typename T, typename Compare, typename Alloc>
+		class _k_Set_base
+		{
+		protected:
+			/*bool compare(const T *x, const T *y)
+			{
+				if (y == nullptr)
+					return true;
+				if (x == nullptr)
+					return false;
+				return comp(*x, *y);
+			}*/
+			class Node;
+			Compare comp;
+			Node *head;
+			size_t s_size;
+		private:
+			Alloc alloc;
+			// balacne the tree
+			Node* balance(Node *h);
+			// change a leftward edge to a rightward one
+			Node* rotate_left(Node *h);
+			// change a leftward edge to a rightward one
+			Node* rotate_right(Node *h);
+			// red -> black, black -> red
+			void flip_colour(Node *h);
+			// get the element that is before all others
+			Node* min(Node *h);
+			// get the element that is after all others
+			Node* max(Node *h);
+			// delete the element that is before all others
+			Node* delete_min(Node *h);
+			Node* move_red_left(Node *h);
+			Node* move_red_right(Node *h);
+			// size_t _size(Node *h);
+		public:
+			explicit _k_Set_base(const Compare& comp, const Alloc& alloc);
+			// copy constructor
+			_k_Set_base(const _k_Set_base& x) = default;
+			_k_Set_base(_k_Set_base&& x) = default;
+			// insert an element
+			std::pair<Node*, bool> _insert(const T& val);
+			std::pair<Node*, bool> _insert(T&& val);
+			// erase
+			Node* _erase(Node* position);
+			std::size_t _erase(const T& val);
+			// clear
+			void _clear() noexcept;
+			// find an element
+			Node* _find(const T& val);
+		}; // class _k_Set_base
+
+	// the realization of class _k_Set_base
+	/** constructor
+	 * will create a head node
+	 * it is convenient
+	 * when we are finding an element
+	 * or deleting one
+	 */
+	template <typename T, typename Compare, typename Alloc>
+		_k_Set_base<T, Compare, Alloc>::_k_Set_base(const Compare& _comp, const Alloc& _alloc) : comp(_comp), s_size(0), alloc(_alloc)
+		{
+			/** we don't store anything in this node
+			 *  and the route to the head node should be black
+			 */
+			head = new Node(nullptr, Node::THREAD, nullptr, Node::THREAD, nullptr, Node::BLACK);
+			head->rlink = head->llink = head;
+		}
+	// insert
+	template <typename T, typename Compare, typename Alloc>
+		std::pair<typename _k_Set_base<T, Compare, Alloc>::Node*, bool> _k_Set_base<T, Compare, Alloc>::_insert(const T& val)
+		{
+			// route recorder
+			std::stack<Node**> route;
+			// ignore the head node
+			Node* *pnode = & head->llink;
+			route.push(pnode);
+			// point to the new node
+			Node* insert_node = nullptr;
+			if (*pnode != head)
+			{
+				while (1)
+				{				
+					Node* &node = *pnode;
+					// record the route
+					if (comp(val, * node->val))
+					{
+						if (node->ltag)
+							// go left
+							pnode = & node->llink;
+						else
+						{
+							// create a new node
+							insert_node = new Node(node->llink, node->ltag, node, Node::THREAD, alloc.allocate(1), Node::RED);
+							alloc.construct(insert_node->val, val);
+							route.push(& node->llink);
+							// mark that the llink points to a child node
+							node->ltag = Node::CHILD;
+							break;
+						}
+					}
+					else if (comp(* node->val, val))
+					{
+						if (node->rtag)
+							// go right
+							pnode = & node->rlink;
+						else
+						{
+							// create a new node
+							insert_node = new Node(node, Node::THREAD, node->rlink, node->rtag, alloc.allocate(1), Node::RED);
+							alloc.construct(insert_node->val, val);
+							route.push(& node->rlink);
+							// mark that the rlink points to a child node
+							node->rtag = Node::CHILD;
+							break;
+						}
+					}
+					else
+						return std::make_pair(node, false); // the key already exists, return the value
+					route.push(pnode);
+				}
+			}
+			// adding key to an empty tree
+			else
+			{
+				insert_node = new Node(head, Node::THREAD, head, Node::THREAD, alloc.allocate(1), Node::BLACK);
+				alloc.construct(insert_node->val, val);
+				// mark that the llink points to a child node
+				head->ltag = Node::CHILD;
+			}
+
+			// attach the new node to its parent node
+			(*route.top()) = insert_node;
+			route.pop();
+
+			// balance the tree
+			while (!route.empty())
+			{
+				(*route.top()) = balance(*route.top());
+				route.pop();
+			}
+			head->llink->colour = Node::BLACK;
+			++s_size;
+			return std::make_pair(insert_node, true);
+		}
+	template <typename T, typename Compare, typename Alloc>
+		std::pair<typename _k_Set_base<T, Compare, Alloc>::Node*, bool> _k_Set_base<T, Compare, Alloc>::_insert(T&& val)
+		{
+			// route recorder
+			std::stack<Node**> route;
+			// ignore the head node
+			Node* *pnode = & head->llink;
+			route.push(pnode);
+			// point to the new node
+			Node* insert_node = nullptr;
+			if (*pnode != head)
+			{
+				while (1)
+				{				
+					Node* &node = *pnode;
+					// record the route
+					if (comp(val, * node->val))
+					{
+						if (node->ltag)
+							// go left
+							pnode = & node->llink;
+						else
+						{
+							// create a new node
+							insert_node = new Node(node->llink, node->ltag, node, Node::THREAD, alloc.allocate(1), Node::RED);
+							alloc.construct(insert_node->val, val);
+							route.push(& node->llink);
+							// mark that the llink points to a child node
+							node->ltag = Node::CHILD;
+							break;
+						}
+					}
+					else if (comp(* node->val, val))
+					{
+						if (node->rtag)
+							// go right
+							pnode = & node->rlink;
+						else
+						{
+							// create a new node
+							insert_node = new Node(node, Node::THREAD, node->rlink, node->rtag, alloc.allocate(1), Node::RED);
+							alloc.construct(insert_node->val, val);
+							route.push(& node->rlink);
+							// mark that the rlink points to a child node
+							node->rtag = Node::CHILD;
+							break;
+						}
+					}
+					else
+						return std::make_pair(node, false); // the key already exists, return the value
+					route.push(pnode);
+				}
+			}
+			// adding key to an empty tree
+			else
+			{
+				insert_node = new Node(head, Node::THREAD, head, Node::THREAD, alloc.allocate(1), Node::BLACK);
+				alloc.construct(insert_node->val, val);
+				// mark that the llink points to a child node
+				head->ltag = Node::CHILD;
+			}
+
+			// attach the new node to its parent node
+			(*route.top()) = insert_node;
+			route.pop();
+
+			// balance the tree
+			while (!route.empty())
+			{
+				(*route.top()) = balance(*route.top());
+				route.pop();
+			}
+			head->llink->colour = Node::BLACK;
+			++s_size;
+			return std::make_pair(insert_node, true);
+		}
+
+
+	// balance
+	template <typename T, typename Compare, typename Alloc>
+		typename _k_Set_base<T, Compare, Alloc>::Node* _k_Set_base<T, Compare, Alloc>::balance(Node *h)
+		{
+			if (h->rlink->colour)
+				h = rotate_left(h);
+			if (h->llink->colour && h->llink->llink->colour)
+				h = rotate_right(h);
+			if (h->llink->colour && h->rlink->colour)
+				flip_colour(h);
+
+			return h;
+		}
+	/** rotate_left
+	 *	everytime we call this function, we should make sure
+	 *  h->rlink->colour is RED
+	 */
+	template <typename T, typename Compare, typename Alloc>
+		typename _k_Set_base<T, Compare, Alloc>::Node* _k_Set_base<T, Compare, Alloc>::rotate_left(Node *h)
+		{
+			Node *x = h->rlink;
+			if (x->ltag)
+			{
+				h->rlink = x->llink;
+				x->llink = h;
+				x->colour = h->colour;
+				/** we assume that when the function is called
+				 *  h->rlink->colour is RED
+				 */
+				h->colour = Node::RED;
+			}
+			else
+			{
+				h->rtag = Node::THREAD;
+				x->llink = h;
+				x->ltag = Node::CHILD;
+			}
+			return x;
+		}
+	/** rotate_left
+	 *	everytime we call this function, we should make sure
+	 *  h->llink->colour is RED
+	 */
+	template <typename T, typename Compare, typename Alloc>
+		typename _k_Set_base<T, Compare, Alloc>::Node* _k_Set_base<T, Compare, Alloc>::rotate_right(Node *h)
+		{
+			Node *x = h->llink;
+			if (x->rtag)
+			{
+				h->llink = x->rlink;
+				h->rlink = h;
+				x->colour = h->colour;
+				/** we assume that when the function is called
+				 *  h->llink->colour is RED
+				 */
+				h->colour = Node::RED;
+			}
+			else
+			{
+				h->ltag = Node::THREAD;
+				x->rlink = h;
+				x->rtag = Node::CHILD;
+			}
+			return x;
+		}
+	// flip colour
+	template <typename T, typename Compare, typename Alloc>
+		void _k_Set_base<T, Compare, Alloc>::flip_colour(Node *h)
+		{
+			h->colour = !h->colour;
+			h->llink->colour = !h->llink->colour;
+			h->rlink->colour = !h->rlink->colour;
+		}
+	// min
+	template <typename T, typename Compare, typename Alloc>
+		typename _k_Set_base<T, Compare, Alloc>::Node* _k_Set_base<T, Compare, Alloc>::min(Node *h)
+		{
+			while (h->ltag)
+				h = h->llink;
+			return h;
+		}
+	// max
+	template <typename T, typename Compare, typename Alloc>
+		typename _k_Set_base<T, Compare, Alloc>::Node* _k_Set_base<T, Compare, Alloc>::max(Node *h)
+		{
+			while (h->rtag)
+				h = h->rlink;
+			return h;
+		}
+	// find
+	template <typename T, typename Compare, typename Alloc>
+		typename _k_Set_base<T, Compare, Alloc>::Node* _k_Set_base<T, Compare, Alloc>::_find(const T& val)
+		{
+			Node *node = head->llink;
+			if (node == head)
+				return head;
+			while (1)
+			{
+				if (comp(val, * node->val))
+				{
+					if (node->ltag)
+						node = node->llink;
+					else
+						return head;
+				}
+				else if (comp(* node->val, val))
+				{
+					if (node->rtag)
+						node = node->rlink;
+					else
+						return head;
+				}
+				else
+					return node;
+			}
+		}
+	// delete_min
+	template <typename T, typename Compare, typename Alloc>
+		typename _k_Set_base<T, Compare, Alloc>::Node* _k_Set_base<T, Compare, Alloc>::delete_min(Node* h)
+		{
+			std::stack<Node**> route;
+			Node **pnode = & h;
+			while ((*pnode)->ltag)
+			{
+				route.push(pnode);
+				pnode = & (*pnode)->llink;
+			}
+			if (route.empty())
+				return head;
+			(*route.top())->ltag = Node::THREAD;
+			(*route.top())->llink = (*pnode)->llink;
+			alloc.destroy((*pnode)->val);
+			alloc.deallocate((*pnode)->val, 1);
+			delete *pnode;
+			Node *node = nullptr;
+			while (!route.empty())
+			{
+				node = *route.top();
+				node = balance(node);
+				route.pop();
+			}
+			return node;
+		}
+	// move_red_left
+	template <typename T, typename Compare, typename Alloc>
+		typename _k_Set_base<T, Compare, Alloc>::Node* _k_Set_base<T, Compare, Alloc>::move_red_left(Node* h)
+		{
+			flip_colour(h);
+			if (h->rlink->llink->colour)
+			{
+				h->rlink = rotate_right(h->rlink);
+				h = rotate_left(h);
+				flip_colour(h);
+			}
+			return h;
+		}
+	// move_red_right
+	template <typename T, typename Compare, typename Alloc>
+		typename _k_Set_base<T, Compare, Alloc>::Node* _k_Set_base<T, Compare, Alloc>::move_red_right(Node* h)
+		{
+			flip_colour(h);
+			if (h->llink->llink->colour)
+			{
+				h = rotate_right(h);
+				flip_colour(h);
+			}
+			return h;
+		}
+	// erase
+	/*template <typename T, typename Compare, typename Alloc>
+		typename _k_Set_base<T, Compare, Alloc>::Node* _k_Set_base<T, Compare, Alloc>::_erase(Node* position)
+		{
+
+		}*/
+	template <typename T, typename Compare, typename Alloc>
+		std::size_t _k_Set_base<T, Compare, Alloc>::_erase(const T& val)
+		{
+
+		}
+	// the realization of class Node
+	template <typename T, typename Compare, typename Alloc>
+		class _k_Set_base<T, Compare, Alloc>::Node
+		{
+		public:
+			static const bool RED = true;
+			static const bool BLACK = false;
+			static const bool CHILD = true;
+			static const bool THREAD = false;
+			Node *llink;
+			bool ltag;
+			Node *rlink;
+			bool rtag;
+			T *val;
+			bool colour;
+			Node(Node* left,
+				 bool left_tag,
+				 Node* right,
+				 bool right_tag,
+				 T *_val,
+				 bool _colour) :
+				 llink(left),
+			     ltag(left_tag),
+			     rlink(right),
+			     rtag(right_tag),
+			     val(_val),
+			     colour(_colour)
+			{}
+		};
+
+	// the realiztion of _k_threaded_bt_iterator
+	template <typename T, typename Compare, typename Alloc>
+		class _k_threaded_bt_iterator : public std::iterator<std::bidirectional_iterator_tag,
+															 T>
+		{
+
+		};
+} // kyle_std
+
+# endif // KYLE_STL_SET
